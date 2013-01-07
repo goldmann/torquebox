@@ -34,9 +34,9 @@
         If you use Ruby Version Manager (RVM), be sure to follow the
         <xref linkend="first-steps-rvm"/> instructions and not the
         generic Mac / Linux instructions.
-      </para>
+       </para>
 
-      <section>
+       <section>
         <title>Your First Rails Application</title>
 
         <para>
@@ -44,7 +44,7 @@
           extract the TorqueBox binary distribution and set a few
           environment variables.
 
-          <screen><prompt>$</prompt> <command>wget http://torquebox.org/release/org/torquebox/torquebox-dist/${project.version}/torquebox-dist-${project.version}-bin.zip</command>
+           <screen><prompt>$</prompt> <command>wget http://torquebox.org/release/org/torquebox/torquebox-dist/${project.version}/torquebox-dist-${project.version}-bin.zip</command>
 ...
 2012-09-13 09:35:56 (1.61 MB/s) - `torquebox-dist-${project.version}-bin.zip' saved [152039457/152039457]
 
@@ -197,7 +197,7 @@ Deployed: rack_example-knob.yml
 
         <para>Continue to <xref linkend="adding-torquebox-features"/>.</para>
       </section>
-    </section>
+     </section>
 
     <section id="first-steps-windows">
       <title>First Steps on Windows</title>
@@ -653,7 +653,7 @@ end</programlisting>
       </section>
     </section>
 
-  </chapter>
+   </chapter>
 
   <chapter id="adding-torquebox-features">
     <title>Adding TorqueBox Features</title>
@@ -943,6 +943,663 @@ messaging:
         found this Getting Started Guide.
       </para>
     </section>
+  </chapter>
+
+  <chapter id="poorsmatic">
+    <title>Poorsmatic</title>
+
+    <para>
+      This chapter shows you how to build a simple web application based
+      on <ulink url="http://sinatrarb.com">Sinatra</ulink>. Althought the
+      application itself is very small, it uses many TorqueBox features.
+    </para>
+
+    <para>
+      We will create an application called Poorsmatic, a "poor man's
+      Prismatic". This is a truly awful content discovery service that merely
+      returns URL's from Twitter that contain at least one occurrence
+      of the search term used to find the tweets containing the URL's
+      in the first place.
+    </para>
+
+    <para>
+      If you don't get it - don't worry - everything will be clear once we start
+      creating it.
+    </para>
+
+    <note>
+      <title>Source code</title>
+      <para>
+        Remember, you can see the full <ulink url="https://github.com/torquebox/examples/poorsmatic/">source code in our repository</ulink> at any time.
+      </para>
+    </note>
+
+    <section id="poorsmatic-overview">
+      <title>Poorsmatic application overview</title>
+
+      <para>
+        <mediaobject>
+          <imageobject>
+            <imagedata align="center" fileref="images/poorsmatic-overview.png" format="PNG" />
+          </imageobject>
+        </mediaobject>
+      </para>
+
+      <para>
+        The main goal of the application is to grab tweets from Twitter stream. We'll use a
+        <code>TwitterService</code> implemented as TorqueBox service. The service itself will be instructed
+        in which keywords we're interested via terms topic. Received tweets will be scanned for URL's
+        and those URL's will be put into url's queue for processing. The <code>URLScraper</code>
+        will be responsible for visiting all URL's from the urls queue and counting the words
+        found in the <code>&lt;body/&gt;</code> tag on the page. Results will be put into
+        database. There will be also a web interface for viewing the URL's and editing the terms.
+      </para>
+
+      <section>
+        <title>Web</title>
+
+        <para>
+          We use use Sinatra web framework for this application. This is a very simple DSL framework
+          for writing web applications fast, which is a perfect choice in our case.
+        </para>
+
+        <para>
+          If you're new to Sinatra, the <ulink url="http://www.sinatrarb.com/">project homepage</ulink> is
+          a great resource to start. It has a lot of examples and pretty good documentation.
+        </para>
+      </section>
+
+      <section>
+        <title>Database</title>
+
+        <para>
+          We choose <ulink url="http://www.postgresql.org/">PostgreSQL</ulink> mainly because it has
+          support for transactions which will be used in our application.
+        </para>
+      </section>
+
+      <section>
+        <title>Configuration</title>
+
+        <section>
+          <title>Database preparation</title>
+
+          <para>
+            First please create a new user and database for the application.
+
+            <screen><prompt>$</prompt><command>su postgres -c psql</command>
+psql (9.2.2)
+Type "help" for help.
+
+<prompt>postgres=#</prompt><command>CREATE USER poorsmatic WITH PASSWORD 'poorsmatic';</command>
+CREATE ROLE
+<prompt>postgres=#</prompt><command>CREATE DATABASE poorsmatic;</command>
+CREATE DATABASE
+<prompt>postgres=#</prompt><command>GRANT ALL PRIVILEGES ON DATABASE poorsmatic to poorsmatic;</command>
+GRANT
+<prompt>postgres=#</prompt><command>\q</command>
+            </screen>
+          </para>
+        </section>
+
+        <section>
+          <title>Database authentication</title>
+
+          <para>
+            To connect to the database we need to use the <code>md5</code> authentication method
+            instead of <code>ident</code>. To change it please open <filename>/var/lib/pgsql/data/pg_hba.conf</filename>
+            (location in <ulink url="http://fedoraproject.org">Fedora</ulink> operating system, may be different
+            if you use some other OS) file and make sure you use <code>md5</code> method.
+          </para>
+        </section>
+
+        <section>
+          <title>Enable transactions in database</title>
+
+          <para>
+            To be able to use TorqueBox transactions in <filename>/var/lib/pgsql/data/postgresql.conf</filename> please set
+            <code>max_prepared_transactions</code> to value greater than <code>0</code>. In our case <code>10</code> should
+            be sufficient.
+          </para>
+        </section>
+
+        <section>
+          <title>ORM</title>
+
+          <para>
+            The object-relational mapper of our choice is <ulink url="http://datamapper.org/">DataMapper</ulink>.
+            To see the configuration details please look at <filename>~/poorsmatic/torquebox_init.rb</filename>.
+            Models are defined in the <filename>~/poorsmatic/models/</filename> directory.
+          </para>
+
+          <para>
+            Although in this quick overview of the app we will not discuss the database access and ORM you can always see the
+            full code in the repository.
+          </para>
+        </section>
+
+        <section>
+          <title>Twitter</title>
+
+          <para>
+            You need to use your Twitter OAuth credentials. You can generate required set of keys/secrets on the
+            <ulink url="https://dev.twitter.com/apps">Twitter apps page</ulink>. Create a new application (or use existing)
+            and modify <filename>~/poorsmatic/torquebox.rb</filename> afterwards.
+          </para>
+        </section>
+      </section>
+    </section>
+
+    <section id="poorsmatic-empty">
+      <title>Empty application</title>
+
+      <para>
+         To start small, let's create a minimalistic Sinatra application
+         skeleton first.
+      </para>
+
+      <example>
+        <title><filename>~/poorsmatic/poorsmatic.rb</filename></title>
+        <programlisting><![CDATA[require 'sinatra'
+
+class Poorsmatic < Sinatra::Base
+  get '/' do
+    "Hello from Poorsmatic!"
+  end
+end]]></programlisting>
+      </example> 
+
+      <para>
+        Since Sinatra is a <ulink url="http://rack.github.com/">Rack</ulink> framework,
+        we need to create a simple <filename>config.ru</filename> file which will
+        inform TorqueBox that this application is a web application.
+
+        <example>
+          <title><filename>~/poorsmatic/config.ru</filename></title>
+          <programlisting><![CDATA[require 'sinatra'
+require 'poorsmatic'
+
+run Poorsmatic]]></programlisting>
+        </example>
+      </para>
+
+      <para>
+        It's time to launch the application for the first time. First we need to
+        start TorqueBox by executing <command>torquebox run</command> command. The output
+        should be similar to this:
+
+        <screen><prompt>$</prompt><command>torquebox run</command>
+...
+14:34:42,734 INFO  [org.torquebox.jobs.as] Initializing TorqueBox Jobs Subsystem
+14:34:42,735 INFO  [org.torquebox.services.as] Initializing TorqueBox Services Subsystem
+14:34:42,738 INFO  [org.torquebox.core.as] Initializing TorqueBox Core Subsystem
+14:34:42,740 INFO  [org.torquebox.security.as] Initializing TorqueBox Auth Subsystem
+14:34:42,740 INFO  [org.torquebox.web.as] Initializing TorqueBox Web Subsystem
+14:34:42,733 INFO  [org.torquebox.cdi.as] Initializing TorqueBox CDI Subsystem
+14:34:42,792 INFO  [org.torquebox.stomp.as] Initializing TorqueBox STOMP Subsystem
+14:34:42,791 INFO  [org.projectodd.polyglot.stomp.as] Initializing Polyglot STOMP Subsystem
+14:34:42,807 INFO  [org.projectodd.polyglot.hasingleton.as] Initializing HA-Singleton Subsystem
+14:34:42,808 INFO  [org.projectodd.polyglot.cache.as] Initializing Polyglot Cache Subsystem
+14:34:42,854 INFO  [org.torquebox.core.as] Welcome to TorqueBox AS - http://torquebox.org/
+14:34:42,855 INFO  [org.torquebox.core.as]   version........... 2.2.0
+14:34:42,856 INFO  [org.torquebox.core.as]   build............. 74
+14:34:42,857 INFO  [org.torquebox.core.as]   revision.......... 530d7d30a5ba5ca953eba21b2aa6df1bf4022649
+...
+14:35:02,072 INFO  [org.jboss.as] (Controller Boot Thread) JBAS015961: Http management interface listening on http://127.0.0.1:9990/management
+14:35:02,073 INFO  [org.jboss.as] (Controller Boot Thread) JBAS015951: Admin console listening on http://127.0.0.1:9990
+14:35:02,073 INFO  [org.jboss.as] (Controller Boot Thread) JBAS015874: JBoss AS 7.1.x.incremental.129 "Arges" started in 21875ms - Started 281 of 400 services (118 services are passive or on-demand)</screen>
+
+        Now we're ready to deploy the application. To do so execute the <command>torquebox deploy</command> command in the <filename>~/poorsmatic</filename> directory:
+
+        <screen><prompt>$</prompt><command>torquebox deploy</command>
+Deployed: poorsmatic-knob.yml
+    into: /home/goldmann/work/torquebox-2.2.0/jboss/standalone/deployments</screen>
+
+        You can now reach your application on <ulink url="http://localhost:8080/"/>. If you see
+        "Hello from Poorsmatic!" message it means that everything worked perfectly!
+      </para>
+
+      <para>
+        Congratulations! You have now a working web application. In the next steps
+        we will extend the functionality of the app and use some of the TorqueBox
+        features.
+      </para>
+
+      <para>
+        It's a good idea to use <ulink url="http://gembundler.com/">Bundler</ulink> at this point.
+        This will help us use the required versions of librarires in the future.
+
+        <example>
+          <title><filename>~/poorsmatic/Gemfile</filename></title>
+          <programlisting><![CDATA[source "http://rubygems.org"
+
+gem "torquebox", "2.2.0"
+gem "sinatra", "1.3.3"
+]]></programlisting>
+        </example>
+
+        Every time you change the <filename>Gemfile</filename> file please run <command>bundle install</command>
+        to make sure the required software will be installed. A file called
+        <filename>Gemfile.lock</filename> will be created.
+
+        <screen><prompt>$</prompt><command>bundle install</command>
+...
+Using torquebox (2.2.0) 
+Using sinatra (1.3.3) 
+Using bundler (1.2.3) 
+Your bundle is complete! Use `bundle show [gemname]` to see where a bundled gem is installed.</screen>
+
+        Now let's bite in some real TorqueBox meat.
+      </para>
+
+    </section>
+
+    <section id="poorsmatic-basic">
+      <title>Basic TorqueBox features</title>
+
+      <para>
+        Since we have the skeleton application, let's add the basic TorqueBox features.
+      </para>
+
+      <section>
+        <title>Deployment descriptor</title>
+
+        <para>
+          Before we start adding new features we need to add first a deployment descriptor
+          to our application. There are two types of deployment descriptors: internal and external.
+          Additionally you have the choice of using pure Ruby DSL or specify the options in YAML format.
+          In our case we'll use Ruby DSL syntax. Please refer to TorqueBox manual if you want
+          to read more about deployment descriptors.
+        </para>
+
+        <para>
+          TorqueBox did pretty job at guessing what kind of application is the
+          one we just deployed. Since it's a web application, TorqueBox automatically
+          registered this application at root context (the default). We can change
+          this (and many other things) by using a deployment descriptor.
+    
+          <example>
+            <title><filename>~/poorsmatic/torquebox.rb</filename></title>
+            <programlisting><![CDATA[TorqueBox.configure do
+  web do
+    context "/poorsmatic"
+  end
+end]]></programlisting>
+          </example> 
+
+          If you redeploy now your application by using the <command>torquebox deploy</command>
+          command you'll see that your application is no longer available under the
+          <ulink url="http://localhost:8080/">root context</ulink> but it's reachable
+          under new <ulink url="http://localhost:8080/poorsmatic/">poorsmatic context</ulink>.
+          Please note the change of the context in the TorqueBox log files:
+
+        <screen>...
+13:25:10,415 INFO  [org.torquebox.core.runtime] (MSC service thread 1-3) Created ruby runtime (ruby_version: RUBY1_9, compile_mode: JIT, app: poorsmatic, context: web) in 2.32s
+13:25:10,430 INFO  [org.jboss.web] (MSC service thread 1-2) JBAS018210: Registering web context: /poorsmatic
+13:25:10,478 INFO  [org.jboss.as.server] (DeploymentScanner-threads - 1) JBAS018565: Replaced deployment "poorsmatic-knob.yml" with deployment "poorsmatic-knob.yml"</screen>
+
+        </para>
+
+      </section>
+
+      <section>
+        <title>Service</title>
+
+        <para>
+          In our application we will use Twitter to receive tweets from the stream filtered by
+          some keywords. The best way to run something constantly is to implement it as a TorqueBox
+          service. Let's start with a skeleton.
+
+          <example>
+            <title><filename>~/poorsmatic/twitter_service.rb</filename></title>
+            <programlisting><![CDATA[class TwitterService
+  def initialize(credentials = {})
+  end
+
+  def start
+  end
+
+  def stop
+  end
+end]]></programlisting>
+          </example>
+
+          The code is pretty self-explaining. The only thing you need to keep in mind is
+          that the <code>start</code> method is executed when you deploy the service. Similarly
+          the <code>stop</code> method is executed when you undeploy the service. As simple as that.
+        </para>
+
+        <para>
+          Currently the service does literally nothing. We need to use a Twitter client. In our
+          example we'll use the <ulink url="https://github.com/tobias/twitter4j4r">twitter4j4r</ulink>
+          client. Please don't ask about the name...
+
+          <example>
+            <title><filename>~/poorsmatic/twitter_service.rb</filename></title>
+            <programlisting><![CDATA[require 'twitter4j4r'
+
+class TwitterService
+  def initialize(credentials = {})
+    @terms = []
+
+    @client = Twitter4j4r::Client.new(
+        :consumer_key     => credentials['consumer_key'],
+        :consumer_secret  => credentials['consumer_secret'],
+        :access_token     => credentials['access_token'],
+        :access_secret    => credentials['access_secret']
+    )
+
+    @client.on_exception do |exception|
+      puts "An error occured while reading the stream: #{exception.message}"
+    end
+  end
+
+  def start
+    @client.track(*@terms) do |status, client|
+    end
+  end
+
+  def stop
+    @client.stop
+  end
+end]]></programlisting>
+          </example>
+
+          Now we need to inform TorqueBox that we want to deploy a service
+          implemented in <code>TwitterService</code> class. We need to do it in the
+          mentioned before <filename>torquebox.rb</filename> deployment descriptor.
+          You may also ask how do we inject the credentials required to connect to Twitter?
+          Yes, you're right, deployment descriptor.
+
+          <example>
+            <title><filename>~/poorsmatic/torquebox.rb</filename></title>
+            <programlisting><![CDATA[TorqueBox.configure do
+  ...
+  service TwitterService do
+    name 'twitter-service'
+    config do
+      consumer_key 'Consumer key'
+      consumer_secret 'Consumer secret'
+      access_token 'Access token'
+      access_secret 'Access token secret'
+    end
+  end
+end]]></programlisting>
+          </example>
+
+          Before you deploy the application make sure you use correct credentials. You can
+          generate them on the <ulink url="https://dev.twitter.com/apps">Twitter apps</ulink>
+          page. Just create new application and you're ready to rock.
+        </para>
+
+        <para>
+          You may wonder how do we update the keyword list we want to watch on Twitter?
+          We'll use messaging features of TorqueBox.
+        </para>
+
+      </section>
+
+      <section>
+        <title>Messaging</title>
+
+        <para>
+          Messaging allows us to create loosely coupled applications. Using queues and topics
+          aswell as message producers and consumers is very easy, so let's start right away!
+          If you're new to the messaging terms, don't fear - take a look at the messaging
+          section of TorqueBox manual.
+        </para>
+
+        <section>
+          <title>Queue and topic deployment</title>
+
+          <para>
+            We need to create one queue and a topic. We'll use the topic to send/receive keywords
+            we want to watch on Twitter and the queue will be used to send urls from tweets
+            containing one or more specified keywords. Creating them is very simple, we just need
+            to add the queue and topic constructs to the deployment descriptor.
+
+            <example>
+              <title><filename>~/poorsmatic/torquebox.rb</filename></title>
+              <programlisting><![CDATA[TorqueBox.configure do
+  ...
+  queue '/queues/urls'
+  topic '/topics/terms'
+end]]></programlisting>
+            </example>
+
+            That's everything required to deploy a queue and topic with your application.
+            Both will be started when you deploy the application and stopped when you
+            undeploy it. Handy feature, isn't?
+          </para>
+
+        </section>
+
+        <section>
+          <title>Message consumers</title>
+
+          <para>
+            It's pretty easy to consume a message from a queue or topic. You can use message
+            processors.
+
+            <example>
+              <title><filename>~/poorsmatic/term_consumer.rb</filename></title>
+              <programlisting><![CDATA[class TermConsumer < TorqueBox::Messaging::MessageProcessor
+  def on_message(message)
+    # do stuff here
+  end
+end]]></programlisting>
+            </example>
+
+            A new message processor will be created for each message that arrives to the queue.
+            The message itself will be injected to the <code>on_message</code> method.
+            You can do whatever you want with it afterwards. In our case we want to update the
+            keywords in the twitter service. The easiest thing to do is to simply get access to the
+            service and execute an update method on it. Let's do it!
+
+            <example>
+              <title><filename>~/poorsmatic/term_consumer.rb</filename></title>
+              <programlisting><![CDATA[class TermConsumer < TorqueBox::Messaging::MessageProcessor
+  include TorqueBox::Injectors
+
+  def initialize
+    @twitter_service = fetch('service:twitter-service')
+  end
+
+  def on_message(terms)
+    @twitter_service.update(terms)
+  end
+end]]></programlisting>
+            </example>
+
+            When the message processor will be created TorqueBox will use its power to inject the
+            service into the consumer. Afterwards the terms will be injected into the <code>on_message</code>
+            method and we'll execute the <code>update</code> method on the service itself. The only thing
+            that left now is to implement the <code>update</code> method in <code>TwitterService</code> class.
+
+            <example>
+              <title><filename>~/poorsmatic/twitter_service.rb</filename></title>
+              <programlisting><![CDATA[class TwitterService
+  def initialize(credentials = {})
+    @terms = []
+    ...
+  end
+
+  def update(terms)
+    @terms = terms
+
+    stop
+    start
+  end
+  ...
+end]]></programlisting>
+            </example>
+
+            Execution of this method will update the terms list. Additionally the Twitter client
+            will be restarted to watch new keywords.
+          </para>
+
+          <para>
+            You can find another message processor used to retrieve and parse web pages in 
+            <filename>~/poorsmatic/url_scrapper.rb</filename> file. Since <code>URLScrapper</code>
+            doesn't do anything fancy besides counting the words in <code>&lt;body&gt;</code> and
+            saving the result in a database we'll not go into discussing it this time, sorry.
+          </para>
+        </section>
+
+        <section>
+          <title>Producing messages</title>
+
+          <para>
+            You know now how to receive messages from topics (or queues), but the remaining question is
+            how to put new messages into the queue? We'll look at it in this section.
+          </para>
+
+          <para>
+            The <code>TwitterService</code> besides retrieving tweets for particular keywords is also
+            supposed to pull out every link from the received tweets. These links will be put into a queue
+            for later processing.
+          </para>
+
+          <para>
+            We will use the twitter-text gem to retrieve the link, but you're free to do it on your own using
+            regular expressions for example.
+
+            <example>
+              <title><filename>~/poorsmatic/twitter_service.rb</filename></title>
+              <programlisting><![CDATA[require 'twitter-text'
+
+class TwitterService
+  include TorqueBox::Injectors
+  ...
+  def start
+    @client.track(*@terms) do |status, client|
+      urls = extract_urls(status.text)
+
+      unless urls.empty?
+        queue = fetch('/queues/urls')
+
+        urls.each do |url|
+          queue.publish(url)
+        end
+      end
+    end
+  end
+  ...
+end]]></programlisting>
+            </example>
+
+            For each received tweet we try to find an URL in it.
+            If we find at least one, we send this URL as a string to the queue. To do this
+            we inject first the queue and later we execute the <code>publish</code> method
+            on it. Easy.
+
+          </para>
+        </section>
+
+      </section>
+
+      <section>
+        <title>Transactions</title>
+
+        <para>
+          The last feature of TorqueBox used in the presented application are distributed transactions.
+          Distributed transaction ensure the atomicity of the execution. They can span across the whole
+          application. For example a transaction could be started in the web layer and end in database.
+          This is exactly how we use it in Poorsmatic!
+
+          <example>
+            <title><filename>~/poorsmatic/poorsmatic.rb</filename></title>
+            <programlisting><![CDATA[require 'torquebox'
+require 'sinatra'
+require 'haml'
+require 'models/term'
+
+class Poorsmatic < Sinatra::Base
+  include TorqueBox::Injectors
+  ...
+  helpers do
+    def terms_changed
+      terms = []
+
+      Term.all.each {|t| terms << t.term}
+
+      topic = fetch('/topics/terms')
+
+      topic.publish(terms)
+    end
+  end
+  ...
+  post '/terms' do
+
+    term = Term.new(:term => params[:term])
+
+    TorqueBox.transaction do
+      if term.save
+        terms_changed
+      else
+        session[:errors] = []
+        term.errors.each {|e| session[:errors] << e.first }
+      end
+    end
+
+    redirect to('/terms')
+  end
+
+  delete '/term/:id' do
+    TorqueBox.transaction do
+      Term.get(params[:id]).destroy
+      terms_changed
+    end
+
+    redirect to('/terms')
+  end
+  ...
+end]]></programlisting>
+          </example>
+
+          Look at the <code>post '/terms'</code> block. This code is executed when we try to save a new
+          term using the web page. First - we create a <code>Term</code> object, then we start
+          a transaction and try to save the object to the database. If the operation was
+          successfull we send a list of the terms (see <code>terms_changed</code> method)
+          as array to the <code>/topic/terms</code> topic.
+        </para>
+
+        <para>
+          The nice thing about transaction is that they're atomic. This means that if an error occurs
+          in the transaction block, the transaction is rolled back and the state is restored. For
+          example if an error occurs in our case during sending a message to the topic, the whole
+          transaction is rolled back and the database state will be restored too!
+        </para>
+
+        <para>
+          You can find another usage of transaction in the <code>delete '/term:id'</code> block.
+          It'll make sure that we'll notify the terms queue only after successful removal of the term
+          from database.
+        </para>
+
+        <para>
+          Since distributed transactions is an advanced topic you can read about them in the TorqueBox manual.
+          You'll find there more information about transactions itself or configuration options.
+        </para>
+
+      </section>
+
+    </section>
+    <section>
+      <title>Wrapping up</title>
+
+      <para>
+        Congratulations! You know now many of TorqueBox features. There are still many to explore.
+        To learn more about them just open the TorqueBox manual and use them.
+      </para>
+
+      <para>
+        Poorsmatic application was just a simple example. You can always go back to the
+        <ulink url="https://github.com/torquebox/examples/poorsmatic/">source code</ulink>
+        and see again how it was done.
+      </para>
+    </section>
+
   </chapter>
 
 </book>
