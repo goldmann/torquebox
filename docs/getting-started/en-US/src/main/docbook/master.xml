@@ -1077,16 +1077,6 @@ GRANT
             full code in the repository.
           </para>
         </section>
-
-        <section>
-          <title>Twitter</title>
-
-          <para>
-            You need to use your Twitter OAuth credentials. You can generate required set of keys/secrets on the
-            <ulink url="https://dev.twitter.com/apps">Twitter apps page</ulink>. Create a new application (or use existing)
-            and modify <filename>~/poorsmatic/torquebox.rb</filename> afterwards.
-          </para>
-        </section>
       </section>
     </section>
 
